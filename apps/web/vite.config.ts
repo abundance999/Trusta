@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { cpSync, mkdirSync } from 'node:fs';
 import { reactRouter } from '@react-router/dev/vite';
 import { reactRouterHonoServer } from 'react-router-hono-server/dev';
 import { defineConfig } from 'vite';
@@ -13,15 +14,30 @@ import { nextPublicProcessEnv } from './plugins/nextPublicProcessEnv';
 import { restart } from './plugins/restart';
 import { restartEnvFileChange } from './plugins/restartEnvFileChange';
 
+// Plugin to copy src/app/api into build/server/src/app/api after build
+function copyApiRoutes() {
+  return {
+    name: 'copy-api-routes',
+    closeBundle() {
+      try {
+        const src = path.resolve(__dirname, 'src/app/api');
+        const dest = path.resolve(__dirname, 'build/server/src/app/api');
+        mkdirSync(dest, { recursive: true });
+        cpSync(src, dest, { recursive: true });
+        console.log('Copied src/app/api to build/server/src/app/api');
+      } catch (e) {
+        console.warn('Could not copy api routes:', e);
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  // Keep them available via import.meta.env.NEXT_PUBLIC_*
   envPrefix: 'NEXT_PUBLIC_',
   build: {
     target: 'esnext',
   },
   optimizeDeps: {
-    // Explicitly include fast-glob, since it gets dynamically imported and we
-    // don't want that to cause a re-bundle.
     include: ['fast-glob', 'lucide-react'],
     exclude: [
       '@hono/auth-js/react',
@@ -43,10 +59,10 @@ export default defineConfig({
       runtime: 'node',
     }),
     babel({
-      include: ['src/**/*.{js,jsx,ts,tsx}'], // or RegExp: /src\/.*\.[tj]sx?$/
-      exclude: /node_modules/, // skip everything else
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      exclude: /node_modules/,
       babelConfig: {
-        babelrc: false, // don't merge other Babel files
+        babelrc: false,
         configFile: false,
         plugins: ['styled-jsx/babel'],
       },
@@ -68,6 +84,7 @@ export default defineConfig({
     tsconfigPaths(),
     aliases(),
     layoutWrapperPlugin(),
+    copyApiRoutes(),
   ],
   resolve: {
     alias: {
